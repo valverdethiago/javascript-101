@@ -20,7 +20,7 @@ class UserService {
     async login(loginRequest) {
         this.cleanUp(loginRequest);
         const dbUser = await this.findUserByEmail(loginRequest.email);
-        if(!dbUser || bcrypt.compareSync(loginRequest.password, dbUser.password)) {
+        if(!dbUser || !bcrypt.compareSync(loginRequest.password, dbUser.password)) {
             throw new ValidationException(['Invalid username or password ']);
         }
         return dbUser;
