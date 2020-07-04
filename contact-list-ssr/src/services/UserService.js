@@ -1,9 +1,8 @@
-const { NoEmitOnErrorsPlugin } = require("webpack");
-
 const validator = require('validator');
 const ValidationException = require('../exceptions/ValidationException');
 const User = require('../models/User');
 const UserModel = require('../models/UserModel');
+const bcrypt = require('bcryptjs');
 
 class UserService {
     constructor(){        
@@ -11,18 +10,39 @@ class UserService {
 
     async register(userRequest) {
         this.cleanUp(userRequest);
-        const user = this.validateUserRequest(userRequest);    
-        if(this.isEmailAlreadyRegistered(user.email)) {
-            throw new ValidationException([`${user.email} is already registered.`]);
-        }    
+        const user = this.validateUserRequest(userRequest);  
+        await this.isUserAlreadyExistent(user.email);    
+        this.encodePassword(user);
         const dbUser = await UserModel.create(user);
         return dbUser;
     }
 
-    cleanUp(userRequest) {
-        for(const key in userRequest) {
-            if( typeof userRequest[key] !== 'string') {
-                userRequest[key] = '';
+    async login(loginRequest) {
+        this.cleanUp(loginRequest);
+        const dbUser = await this.findUserByEmail(loginRequest.email);
+        if(!dbUser || bcrypt.compareSync(loginRequest.password, dbUser.password)) {
+            throw new ValidationException(['Invalid username or password ']);
+        }
+        return dbUser;
+    }
+
+    async isUserAlreadyExistent(email) {
+        let dbUser = await this.findUserByEmail(email);
+        if (dbUser) {
+            throw new ValidationException([`${email} is already registered.`]);
+        }
+        return dbUser;
+    }
+
+    encodePassword(user) {
+        const salt = bcrypt.genSaltSync();
+        user.password = bcrypt.hashSync(user.password, salt);
+    }
+
+    cleanUp(request) {
+        for(const key in request) {
+            if( typeof request[key] !== 'string') {
+                request[key] = '';
             }
         }
     }
@@ -47,8 +67,8 @@ class UserService {
         return new User(null, userRequest.name, userRequest.email, userRequest.password);
     }
 
-    isEmailAlreadyRegistered(email) {
-
+    async findUserByEmail(email) {
+        return UserModel.findOne({'email' : email});
     }
 }
 
